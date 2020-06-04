@@ -1,0 +1,158 @@
+
+## <summary>policy for mtop</summary>
+
+########################################
+## <summary>
+##	Execute mtop_exec_t in the mtop domain.
+## </summary>
+## <param name="domain">
+## <summary>
+##	Domain allowed to transition.
+## </summary>
+## </param>
+#
+interface(`mtop_domtrans',`
+	gen_require(`
+		type mtop_t, mtop_exec_t;
+	')
+
+	corecmd_search_bin($1)
+	domtrans_pattern($1, mtop_exec_t, mtop_t)
+')
+
+######################################
+## <summary>
+##	Execute mtop in the caller domain.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`mtop_exec',`
+	gen_require(`
+		type mtop_exec_t;
+	')
+
+	corecmd_search_bin($1)
+	can_exec($1, mtop_exec_t)
+')
+########################################
+## <summary>
+##	Execute mtop server in the mtop domain.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed to transition.
+##	</summary>
+## </param>
+#
+interface(`mtop_systemctl',`
+	gen_require(`
+		type mtop_t;
+		type mtop_unit_file_t;
+	')
+
+	systemd_exec_systemctl($1)
+        systemd_read_fifo_file_passwd_run($1)
+	allow $1 mtop_unit_file_t:file read_file_perms;
+	allow $1 mtop_unit_file_t:service manage_service_perms;
+
+	ps_process_pattern($1, mtop_t)
+')
+
+
+########################################
+## <summary>
+##	Execute mtop in the mtop domain, and
+##	allow the specified role the mtop domain.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed to transition
+##	</summary>
+## </param>
+## <param name="role">
+##	<summary>
+##	The role to be allowed the mtop domain.
+##	</summary>
+## </param>
+#
+interface(`mtop_run',`
+	gen_require(`
+		type mtop_t;
+		attribute_role mtop_roles;
+	')
+
+	mtop_domtrans($1)
+	roleattribute $2 mtop_roles;
+')
+
+########################################
+## <summary>
+##	Role access for mtop
+## </summary>
+## <param name="role">
+##	<summary>
+##	Role allowed access
+##	</summary>
+## </param>
+## <param name="domain">
+##	<summary>
+##	User domain for the role
+##	</summary>
+## </param>
+#
+interface(`mtop_role',`
+	gen_require(`
+		type mtop_t;
+		attribute_role mtop_roles;
+	')
+
+	roleattribute $1 mtop_roles;
+
+	mtop_domtrans($2)
+
+	ps_process_pattern($2, mtop_t)
+	allow $2 mtop_t:process { signull signal sigkill };
+')
+
+########################################
+## <summary>
+##	All of the rules required to administrate
+##	an mtop environment
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+## <param name="role">
+##	<summary>
+##	Role allowed access.
+##	</summary>
+## </param>
+## <rolecap/>
+#
+interface(`mtop_admin',`
+	gen_require(`
+		type mtop_t;
+	type mtop_unit_file_t;
+	')
+
+	allow $1 mtop_t:process { signal_perms };
+	ps_process_pattern($1, mtop_t)
+
+    tunable_policy(`deny_ptrace',`',`
+        allow $1 mtop_t:process ptrace;
+    ')
+
+	mtop_systemctl($1)
+	admin_pattern($1, mtop_unit_file_t)
+	allow $1 mtop_unit_file_t:service all_service_perms;
+	optional_policy(`
+		systemd_passwd_agent_exec($1)
+		systemd_read_fifo_file_passwd_run($1)
+	')
+')
