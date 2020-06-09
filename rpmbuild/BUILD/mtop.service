@@ -1,0 +1,8 @@
+[Unit]
+Description=memoryControllerApplication
+
+[Service]
+ExecStart=/bin/bash /usr/bin/mtop/mtop.sh
+
+[Install]
+WantedBy=multi-user.target
